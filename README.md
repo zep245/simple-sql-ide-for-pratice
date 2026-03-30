@@ -1,0 +1,1 @@
+# simple-sql-ide-for-pratice
