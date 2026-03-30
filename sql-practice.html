@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Sandbox — Full Practice</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --surface3: #0e0e16;
+    --border: #2a2a3a;
+    --accent: #00e5a0;
+    --accent2: #7b61ff;
+    --accent3: #ff6b6b;
+    --accent4: #ffd166;
+    --text: #e8e8f0;
+    --text-dim: #6b6b88;
+    --font-mono: 'Space Mono', monospace;
+    --font-display: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(0,229,160,0.025) 1px,transparent 1px), linear-gradient(90deg,rgba(0,229,160,0.025) 1px,transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  .app { position: relative; z-index: 1; display: grid; grid-template-rows: auto 1fr; min-height: 100vh; }
+  /* HEADER */
+  header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: rgba(10,10,15,0.9); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 50; }
+  .logo-badge { background: var(--accent); color: #000; font-weight: 700; font-size: 10px; padding: 3px 7px; letter-spacing: 0.12em; border-radius: 3px; }
+  header h1 { font-family: var(--font-display); font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
+  header h1 span { color: var(--accent); }
+  .caps { display: flex; gap: 6px; margin-left: 4px; flex-wrap: wrap; }
+  .cap { font-size: 9px; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.08em; font-weight: 700; }
+  .cap-g { background: rgba(0,229,160,0.1); color: var(--accent); border: 1px solid rgba(0,229,160,0.2); }
+  .cap-p { background: rgba(123,97,255,0.1); color: var(--accent2); border: 1px solid rgba(123,97,255,0.2); }
+  .cap-y { background: rgba(255,209,102,0.1); color: var(--accent4); border: 1px solid rgba(255,209,102,0.2); }
+  .engine-status { margin-left: auto; font-size: 10px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .edot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+  .edot.ready { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  /* MAIN */
+  .main { display: grid; grid-template-columns: 250px 1fr 270px; height: calc(100vh - 53px); overflow: hidden; }
+  /* SIDEBAR */
+  .sidebar { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; background: var(--surface3); }
+  .sb-title { padding: 9px 13px; font-size: 9px; letter-spacing: 0.14em; color: var(--text-dim); text-transform: uppercase; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 7px; }
+  .sdot { width: 5px; height: 5px; border-radius: 50%; }
+  .upload-zone { margin: 10px; border: 2px dashed var(--border); border-radius: 6px; padding: 14px 10px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(0,229,160,0.04); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-zone .ui { font-size: 20px; display: block; margin-bottom: 6px; }
+  .upload-zone p { font-size: 10px; color: var(--text-dim); line-height: 1.6; }
+  .upload-zone p strong { color: var(--accent); font-size: 11px; display: block; }
+  .table-list { overflow-y: auto; flex: 0 0 auto; max-height: 160px; }
+  .titem { padding: 7px 13px; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: background 0.1s; border-left: 2px solid transparent; font-size: 11px; }
+  .titem:hover { background: var(--surface2); }
+  .titem.active { border-left-color: var(--accent); background: rgba(0,229,160,0.05); }
+  .titem .tn { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .titem.active .tn { color: var(--accent); }
+  .tr-badge { font-size: 9px; color: var(--text-dim); background: var(--surface2); padding: 1px 5px; border-radius: 8px; }
+  .titem.active .tr-badge { background: rgba(0,229,160,0.12); color: var(--accent); }
+  .no-tables { padding: 14px; font-size: 11px; color: var(--text-dim); text-align: center; line-height: 1.8; }
+  .no-tables strong { color: var(--accent); display: block; margin-bottom: 3px; }
+  .schema-panel { padding: 10px 13px; overflow-y: auto; flex: 1; }
+  .scol { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 10px; border-bottom: 1px solid rgba(42,42,58,0.4); }
+  .scol:last-child { border: none; }
+  .cn { flex: 1; color: var(--text); }
+  .ct { font-size: 9px; color: var(--accent2); background: rgba(123,97,255,0.1); padding: 1px 4px; border-radius: 3px; }
+  /* CENTER */
+  .center { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+  .pane-hdr { padding: 8px 13px; font-size: 9px; letter-spacing: 0.13em; color: var(--text-dim); text-transform: uppercase; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface3); }
+  .pdot { width: 5px; height: 5px; border-radius: 50%; }
+  .editor-area { width: 100%; background: transparent; border: none; color: var(--text); font-family: var(--font-mono); font-size: 13px; padding: 13px 15px; resize: none; height: 190px; line-height: 1.7; outline: none; }
+  .quick-bar { padding: 6px 13px; border-top: 1px solid var(--border); display: flex; gap: 5px; flex-wrap: wrap; background: var(--surface3); }
+  .chip { padding: 3px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; font-size: 9px; color: var(--text-dim); cursor: pointer; transition: all 0.12s; font-family: var(--font-mono); white-space: nowrap; }
+  .chip:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(123,97,255,0.08); }
+  .toolbar { padding: 7px 13px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 7px; background: var(--surface3); flex-wrap: wrap; }
+  .btn { padding: 5px 13px; border-radius: 4px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; cursor: pointer; border: none; letter-spacing: 0.05em; transition: all 0.15s; }
+  .btn-run { background: var(--accent); color: #000; }
+  .btn-run:hover { opacity: 0.85; }
+  .btn-sm { background: transparent; color: var(--text-dim); border: 1px solid var(--border); font-size: 10px; padding: 4px 9px; }
+  .btn-sm:hover { border-color: var(--accent2); color: var(--accent2); }
+  .btn-d { background: transparent; color: var(--accent3); border: 1px solid rgba(255,107,107,0.3); font-size: 10px; padding: 4px 9px; }
+  .btn-d:hover { background: rgba(255,107,107,0.07); }
+  .kbhint { margin-left: auto; font-size: 10px; color: var(--text-dim); }
+  kbd { background: var(--surface2); border: 1px solid var(--border); padding: 1px 4px; border-radius: 3px; font-size: 9px; }
+  .results-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .res-hdr { padding: 7px 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface3); font-size: 9px; letter-spacing: 0.12em; color: var(--text-dim); text-transform: uppercase; }
+  .spill { background: var(--surface2); padding: 2px 7px; border-radius: 10px; font-size: 9px; display: flex; align-items: center; gap: 4px; }
+  .spill .v { color: var(--accent); font-weight: 700; }
+  .tscroll { overflow: auto; flex: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { position: sticky; top: 0; z-index: 2; background: var(--surface2); }
+  th { padding: 7px 11px; text-align: left; font-size: 9px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 6px 11px; border-bottom: 1px solid rgba(42,42,58,0.4); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  tr:hover td { background: rgba(255,255,255,0.015); }
+  tr:last-child td { border-bottom: none; }
+  td.num { color: var(--accent); }
+  td.nul { color: var(--text-dim); font-style: italic; font-size: 10px; }
+  .state-box { padding: 36px 20px; text-align: center; color: var(--text-dim); font-size: 12px; line-height: 1.8; }
+  .si { font-size: 30px; margin-bottom: 10px; }
+  .err-msg { color: var(--accent3); font-size: 11px; margin-top: 10px; background: rgba(255,107,107,0.06); padding: 10px 14px; border-radius: 4px; text-align: left; max-width: 480px; margin: 10px auto 0; line-height: 1.7; white-space: pre-wrap; }
+  .status-bar { padding: 5px 13px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-dim); display: flex; gap: 12px; background: var(--surface3); flex-shrink: 0; }
+  .sok { color: var(--accent); }
+  .serr { color: var(--accent3); }
+  /* CHEAT SHEET */
+  .cheatsheet { display: flex; flex-direction: column; overflow: hidden; background: var(--surface3); }
+  .cheat-tabs { display: flex; border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0; }
+  .ctab { padding: 8px 11px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; }
+  .ctab:hover { color: var(--text); }
+  .ctab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .cheat-body { flex: 1; overflow-y: auto; padding: 10px; }
+  .csec { margin-bottom: 12px; }
+  .clabel { font-size: 9px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+  .clabel::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .csnip { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 7px 9px; font-size: 10.5px; line-height: 1.65; color: var(--text); cursor: pointer; transition: all 0.15s; margin-bottom: 5px; white-space: pre; overflow-x: auto; position: relative; font-family: var(--font-mono); }
+  .csnip:hover { border-color: var(--accent2); background: rgba(123,97,255,0.06); }
+  .csnip:hover::after { content: 'Use \2192'; position: absolute; top: 5px; right: 7px; font-size: 9px; color: var(--accent2); }
+  .toast { position: fixed; bottom: 18px; right: 18px; background: var(--surface2); border: 1px solid var(--accent); color: var(--accent); padding: 7px 13px; border-radius: 5px; font-size: 11px; z-index: 200; animation: fup 0.25s ease; }
+  @keyframes fup { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  @media(max-width:900px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; height: auto; }
+    .sidebar { max-height: 240px; border-right: none; border-bottom: 1px solid var(--border); }
+    .cheatsheet { max-height: 300px; border-top: 1px solid var(--border); }
+    .center { height: 65vh; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo-badge">SQL</div>
+  <h1>CSV <span>&#8594;</span> SQL Sandbox</h1>
+  <div class="caps">
+    <span class="cap cap-g">Window Fn</span>
+    <span class="cap cap-p">CTEs</span>
+    <span class="cap cap-y">Subqueries</span>
+    <span class="cap cap-g">INSERT</span>
+    <span class="cap cap-p">CREATE</span>
+    <span class="cap cap-y">Recursive</span>
+  </div>
+  <div class="engine-status">
+    <div class="edot" id="eDot"></div>
+    <span id="eLabel">Loading...</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-title" style="border-bottom:1px solid var(--border)">
+      <span class="sdot" style="background:var(--accent)"></span> Upload CSV
+    </div>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="csvFile" accept=".csv" multiple>
+      <span class="ui">&#128193;</span>
+      <p><strong>Drop CSV files here</strong>Multiple files = multiple tables</p>
+    </div>
+
+    <div class="sb-title">
+      <span class="sdot" style="background:var(--accent2)"></span> Tables
+      <span id="tcount" style="margin-left:auto;font-size:9px">0</span>
+    </div>
+    <div class="table-list" id="tableList">
+      <div class="no-tables"><strong>No tables</strong>Upload CSV or CREATE TABLE.</div>
+    </div>
+
+    <div class="sb-title" style="border-top:1px solid var(--border)">
+      <span class="sdot" style="background:var(--accent4)"></span> Schema
+    </div>
+    <div class="schema-panel" id="schemaPanel">
+      <div style="font-size:10px;color:var(--text-dim);text-align:center;padding-top:8px">Select a table</div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+    <div style="border-bottom:1px solid var(--border)">
+      <div class="pane-hdr">
+        <span class="pdot" style="background:var(--accent2)"></span>
+        Query Editor
+        <span style="margin-left:auto;font-size:9px">SQLite &bull; multiple statements &bull; Ctrl+Enter to run</span>
+      </div>
+      <textarea class="editor-area" id="queryEditor" placeholder="-- ALL SQL features supported:
+-- SELECT, INSERT, CREATE, CTEs, Window Functions, Subqueries...
+-- Click any snippet in the Cheat Sheet panel to load it.
+
+SELECT * FROM your_table LIMIT 10;"></textarea>
+      <div class="quick-bar" id="quickBar">
+        <span style="font-size:9px;color:var(--text-dim)">Quick:</span>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-run" onclick="runQuery()">&#9654; Run</button>
+        <button class="btn btn-sm" onclick="clearEditor()">Clear</button>
+        <button class="btn btn-sm" onclick="formatQuery()">Format</button>
+        <button class="btn btn-sm" onclick="refreshTables()">&#8635; Tables</button>
+        <button class="btn btn-d" onclick="resetDB()">Reset DB</button>
+        <div class="kbhint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd></div>
+      </div>
+    </div>
+
+    <div class="results-pane">
+      <div class="res-hdr" id="resHdr">
+        <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:#444"></span>
+        Results
+      </div>
+      <div class="tscroll" id="resContent">
+        <div class="state-box">
+          <div class="si">&#9889;</div>
+          Run a query to see results here.<br>
+          <small>All SQL features work &mdash; try a CTE or window function!</small>
+        </div>
+      </div>
+      <div class="status-bar">
+        <span id="statusText" class="sok">Engine loading...</span>
+        <span id="execTime"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHEAT SHEET -->
+  <div class="cheatsheet">
+    <div class="pane-hdr">
+      <span class="pdot" style="background:var(--accent4)"></span>
+      SQL Cheat Sheet
+      <span style="margin-left:auto;font-size:9px">click snippet to load &rarr;</span>
+    </div>
+    <div class="cheat-tabs" id="cheatTabs">
+      <div class="ctab active" onclick="showCheat('basics')" data-c="basics">Basics</div>
+      <div class="ctab" onclick="showCheat('window')" data-c="window">Window</div>
+      <div class="ctab" onclick="showCheat('cte')" data-c="cte">CTE</div>
+      <div class="ctab" onclick="showCheat('subq')" data-c="subq">Subquery</div>
+      <div class="ctab" onclick="showCheat('ddl')" data-c="ddl">DDL/DML</div>
+      <div class="ctab" onclick="showCheat('demo')" data-c="demo">&#128640; Demo</div>
+    </div>
+    <div class="cheat-body" id="cheatBody"></div>
+  </div>
+
+</div>
+</div>
+
+<script>
+/* ── ENGINE ── */
+let db=null, SQL=null, tables={}, activeTable=null;
+initSqlJs({locateFile:f=>`https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}`})
+  .then(s=>{
+    SQL=s; db=new SQL.Database();
+    document.getElementById('eDot').className='edot ready';
+    document.getElementById('eLabel').textContent='SQLite ready';
+    setSt('Engine ready — upload CSV or try the Demo tab','ok');
+  }).catch(e=>setSt('Engine failed: '+e,'err'));
+
+/* ── UPLOAD ── */
+const uz=document.getElementById('uploadZone'), ci=document.getElementById('csvFile');
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.classList.add('drag-over');});
+uz.addEventListener('dragleave',()=>uz.classList.remove('drag-over'));
+uz.addEventListener('drop',e=>{e.preventDefault();uz.classList.remove('drag-over');
+  Array.from(e.dataTransfer.files).filter(f=>f.name.endsWith('.csv')).forEach(loadCSV);});
+ci.addEventListener('change',e=>{Array.from(e.target.files).forEach(loadCSV);e.target.value='';});
+
+function loadCSV(file){
+  const r=new FileReader();
+  r.onload=ev=>{
+    const name=file.name.replace(/\.csv$/i,'').replace(/[^a-zA-Z0-9_]/g,'_').replace(/^(\d)/,'_$1').toLowerCase();
+    doInsert(name,ev.target.result,file.name);
+  };
+  r.readAsText(file);
+}
+function parseCSVRow(line){
+  const res=[];let cur='',inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+    else if(c===','&&!inQ){res.push(cur.trim());cur='';}
+    else cur+=c;
+  }
+  res.push(cur.trim());return res;
+}
+function inferType(vals){
+  const ne=vals.filter(v=>v!==''&&v!=null);
+  if(!ne.length)return'TEXT';
+  if(ne.every(v=>/^-?\d+$/.test(v)))return'INTEGER';
+  if(ne.every(v=>/^-?\d*\.?\d+$/.test(v)))return'REAL';
+  return'TEXT';
+}
+function doInsert(tname,csv,fname){
+  if(!db){setSt('Engine not ready','err');return;}
+  const lines=csv.trim().split(/\r?\n/);
+  if(lines.length<2){setSt('CSV needs header + data rows','err');return;}
+  const hdrs=parseCSVRow(lines[0]);
+  const rows=[];
+  for(let i=1;i<lines.length;i++){if(lines[i].trim())rows.push(parseCSVRow(lines[i]));}
+  const types=hdrs.map((_,i)=>inferType(rows.map(r=>r[i])));
+  const cols=hdrs.map(h=>h.replace(/[^a-zA-Z0-9_]/g,'_').replace(/^(\d)/,'_$1')||'col');
+  try{db.run(`DROP TABLE IF EXISTS "${tname}"`);}catch(e){}
+  db.run(`CREATE TABLE "${tname}" (${cols.map((c,i)=>`"${c}" ${types[i]}`).join(',')})`);
+  const ph=cols.map(()=>'?').join(',');
+  const stmt=db.prepare(`INSERT INTO "${tname}" VALUES (${ph})`);
+  db.run('BEGIN');let n=0;
+  for(const row of rows){
+    const vals=cols.map((_,i)=>{
+      const v=row[i];if(v===''||v==null)return null;
+      if(types[i]==='INTEGER')return parseInt(v)||null;
+      if(types[i]==='REAL')return parseFloat(v)||null;
+      return v;
+    });
+    try{stmt.run(vals);n++;}catch(e){}
+  }
+  db.run('COMMIT');stmt.free();
+  tables[tname]={cols,types,rows:n};activeTable=tname;
+  refreshTables();updateQuickBar(tname,cols,types);
+  document.getElementById('queryEditor').value=`SELECT * FROM "${tname}" LIMIT 10;`;
+  setSt(`Loaded "${fname}" as "${tname}" — ${n} rows, ${cols.length} cols`,'ok');
+  toast(`Table "${tname}" ready!`);
+}
+
+/* ── TABLE LIST ── */
+function refreshTables(){
+  if(!db)return;
+  try{
+    const res=db.exec(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`);
+    const dbT=res.length?res[0].values.map(r=>r[0]):[];
+    dbT.forEach(t=>{
+      if(!tables[t]){
+        const info=db.exec(`PRAGMA table_info("${t}")`);
+        if(info.length){
+          tables[t]={cols:info[0].values.map(r=>r[1]),types:info[0].values.map(r=>(r[2]||'TEXT').toUpperCase()),rows:0};
+        }
+      }
+      try{const c=db.exec(`SELECT COUNT(*) FROM "${t}"`);if(c.length)tables[t].rows=c[0].values[0][0];}catch(e){}
+    });
+    Object.keys(tables).forEach(t=>{if(!dbT.includes(t))delete tables[t];});
+  }catch(e){}
+  const keys=Object.keys(tables);
+  document.getElementById('tcount').textContent=keys.length;
+  const list=document.getElementById('tableList');
+  if(!keys.length){
+    list.innerHTML='<div class="no-tables"><strong>No tables</strong>Upload CSV or CREATE TABLE.</div>';
+    document.getElementById('schemaPanel').innerHTML='<div style="font-size:10px;color:var(--text-dim);text-align:center;padding-top:8px">No tables</div>';
+    return;
+  }
+  if(!activeTable||!tables[activeTable])activeTable=keys[0];
+  list.innerHTML=keys.map(t=>`
+    <div class="titem ${t===activeTable?'active':''}" onclick="selTable('${t}')">
+      <span>&#128451;</span>
+      <span class="tn">${t}</span>
+      <span class="tr-badge">${tables[t].rows}r</span>
+    </div>`).join('');
+  showSchema(activeTable);
+}
+function selTable(t){
+  activeTable=t;refreshTables();
+  if(tables[t])updateQuickBar(t,tables[t].cols,tables[t].types);
+}
+function showSchema(t){
+  const info=tables[t];if(!info)return;
+  document.getElementById('schemaPanel').innerHTML=info.cols.map((c,i)=>`
+    <div class="scol"><span class="cn">${c}</span><span class="ct">${info.types[i]}</span></div>`).join('');
+}
+
+/* ── QUICK BAR ── */
+function updateQuickBar(t,cols,types){
+  const nc=cols.find((_,i)=>types[i]!=='TEXT')||cols[0];
+  const tc=cols.find((_,i)=>types[i]==='TEXT')||cols[0];
+  const chips=[
+    {l:'SELECT *',q:`SELECT * FROM "${t}" LIMIT 50;`},
+    {l:'COUNT',q:`SELECT COUNT(*) AS total FROM "${t}";`},
+    {l:'GROUP BY',q:`SELECT "${tc}", COUNT(*) AS cnt\nFROM "${t}"\nGROUP BY 1 ORDER BY cnt DESC LIMIT 20;`},
+    nc?{l:'AVG/SUM',q:`SELECT AVG("${nc}") AS avg_val, SUM("${nc}") AS total,\n       MIN("${nc}") AS min_val, MAX("${nc}") AS max_val\nFROM "${t}";`}:null,
+    {l:'Schema',q:`PRAGMA table_info("${t}");`},
+    {l:'Row#',q:`SELECT ROW_NUMBER() OVER (ORDER BY "${cols[0]}") AS rn, *\nFROM "${t}" LIMIT 20;`},
+    nc?{l:'Running Total',q:`SELECT "${cols[0]}", "${nc}",\n  SUM("${nc}") OVER (ORDER BY "${cols[0]}") AS running_total\nFROM "${t}" LIMIT 20;`}:null,
+  ].filter(Boolean);
+  document.getElementById('quickBar').innerHTML=
+    `<span style="font-size:9px;color:var(--text-dim)">Quick:</span>`+
+    chips.map(c=>`<div class="chip" onclick='setQ(${JSON.stringify(c.q)})'>${c.l}</div>`).join('');
+}
+
+/* ── RUN QUERY ── */
+function runQuery(){
+  if(!db){setSt('Engine not ready','err');return;}
+  const sql=document.getElementById('queryEditor').value.trim();
+  if(!sql){setSt('Write a query first','err');return;}
+  const t0=performance.now();
+  try{
+    const results=db.exec(sql);
+    const ms=(performance.now()-t0).toFixed(1);
+    document.getElementById('execTime').textContent=ms+'ms';
+    refreshTables();
+    if(!results||!results.length){
+      setResHdr('ok','— OK (no rows)',ms);
+      document.getElementById('resContent').innerHTML=
+        `<div class="state-box"><div class="si">&#9989;</div>Statement executed successfully.<br><small style="color:var(--text-dim)">INSERT / UPDATE / DELETE / CREATE / DROP ran OK.</small></div>`;
+      setSt('Query executed — no rows returned','ok');
+    }else{
+      const r=results[results.length-1];
+      showTable(r,ms);
+      setSt(`${r.values.length} row${r.values.length!==1?'s':''} returned`,'ok');
+    }
+  }catch(e){
+    const ms=(performance.now()-t0).toFixed(1);
+    document.getElementById('execTime').textContent=ms+'ms';
+    setResHdr('err','— Error',ms);
+    document.getElementById('resContent').innerHTML=
+      `<div class="state-box"><div class="si">&#10060;</div><p style="color:var(--text-dim)">SQL Error</p><div class="err-msg">${e.message}</div></div>`;
+    setSt('Error: '+e.message,'err');
+    refreshTables();
+  }
+}
+function showTable(r,ms){
+  const{columns,values}=r;
+  setResHdr('ok','',ms,columns.length,values.length);
+  const numC=columns.map((_,ci)=>values.slice(0,30).every(row=>row[ci]===null||typeof row[ci]==='number'));
+  document.getElementById('resContent').innerHTML=`
+    <table>
+      <thead><tr>${columns.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${values.map(row=>`<tr>${row.map((cell,ci)=>{
+        if(cell===null)return`<td class="nul">NULL</td>`;
+        if(numC[ci])return`<td class="num">${cell}</td>`;
+        return`<td title="${String(cell).replace(/"/g,'&quot;')}">${String(cell)}</td>`;
+      }).join('')}</tr>`).join('')}</tbody>
+    </table>`;
+}
+function setResHdr(type,suffix,ms,cols,rows){
+  const c=type==='err'?'var(--accent3)':'var(--accent)';
+  let p='';
+  if(rows!=null)p+=`<div class="spill"><span class="v">${rows}</span>rows</div>`;
+  if(cols!=null)p+=`<div class="spill"><span class="v">${cols}</span>cols</div>`;
+  if(ms)p+=`<div class="spill"><span class="v">${ms}ms</span></div>`;
+  document.getElementById('resHdr').innerHTML=
+    `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${c};box-shadow:0 0 5px ${c}"></span> Results ${suffix}<div style="margin-left:auto;display:flex;gap:5px">${p}</div>`;
+}
+
+/* ── EDITOR HELPERS ── */
+function setQ(q){document.getElementById('queryEditor').value=q;document.getElementById('queryEditor').focus();}
+function clearEditor(){document.getElementById('queryEditor').value='';document.getElementById('queryEditor').focus();}
+function resetDB(){
+  if(!SQL)return;
+  if(!confirm('Reset the entire database? All tables will be lost.'))return;
+  db=new SQL.Database();tables={};activeTable=null;
+  refreshTables();clearEditor();
+  document.getElementById('resContent').innerHTML='<div class="state-box"><div class="si">&#128465;</div>Database reset!</div>';
+  setSt('Database reset','ok');toast('DB reset!');
+}
+function formatQuery(){
+  const ta=document.getElementById('queryEditor');
+  const kws=['SELECT','FROM','WHERE','GROUP BY','ORDER BY','HAVING','LIMIT','OFFSET',
+    'LEFT JOIN','RIGHT JOIN','INNER JOIN','FULL JOIN','CROSS JOIN','JOIN','ON',
+    'UNION ALL','UNION','EXCEPT','INTERSECT','WITH','OVER','PARTITION BY',
+    'ROWS BETWEEN','AND','OR','INSERT INTO','VALUES','UPDATE','SET','DELETE FROM',
+    'CREATE TABLE','DROP TABLE','ALTER TABLE'];
+  let q=ta.value;
+  kws.forEach(kw=>{q=q.replace(new RegExp('\\b'+kw+'\\b','gi'),'\n'+kw.toUpperCase());});
+  ta.value=q.trim().split('\n').map(l=>l.trim()).filter(l=>l).join('\n');
+}
+function setSt(msg,t){
+  const el=document.getElementById('statusText');el.textContent=msg;el.className=t==='err'?'serr':'sok';
+}
+let _tt;
+function toast(msg){
+  document.querySelector('.toast')?.remove();clearTimeout(_tt);
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);_tt=setTimeout(()=>t.remove(),3000);
+}
+document.getElementById('queryEditor').addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();runQuery();}
+});
+
+/* ── CHEAT SHEET DATA ── */
+const CD = {
+  basics:[
+    {l:'SELECT + WHERE + ORDER BY',c:
+`SELECT name, salary, dept
+FROM employees
+WHERE salary > 50000
+  AND dept = 'Engineering'
+ORDER BY salary DESC
+LIMIT 10;`},
+    {l:'GROUP BY + HAVING',c:
+`SELECT dept,
+  COUNT(*)    AS headcount,
+  AVG(salary) AS avg_salary,
+  MAX(salary) AS top_salary
+FROM employees
+GROUP BY dept
+HAVING COUNT(*) > 2
+ORDER BY avg_salary DESC;`},
+    {l:'JOIN two tables',c:
+`SELECT e.name, e.salary, d.dept_name
+FROM employees  e
+INNER JOIN departments d
+  ON e.dept_id = d.id
+WHERE d.dept_name = 'Sales';`},
+    {l:'INSERT multiple rows',c:
+`INSERT INTO employees (name, dept, salary)
+VALUES
+  ('Alice', 'Engineering', 95000),
+  ('Bob',   'Marketing',   62000),
+  ('Carol', 'Engineering', 88000);`},
+    {l:'UPDATE + DELETE',c:
+`-- Give Engineering a 10% raise
+UPDATE employees
+SET salary = salary * 1.10
+WHERE dept = 'Engineering';
+
+-- Remove low earners
+DELETE FROM employees
+WHERE salary < 30000;`},
+  ],
+  window:[
+    {l:'ROW_NUMBER — unique rank per row',c:
+`SELECT
+  name, dept, salary,
+  ROW_NUMBER() OVER (
+    PARTITION BY dept
+    ORDER BY salary DESC
+  ) AS rank_in_dept
+FROM employees;`},
+    {l:'RANK vs DENSE_RANK',c:
+`SELECT
+  name, salary,
+  RANK()       OVER (ORDER BY salary DESC) AS rnk,
+  DENSE_RANK() OVER (ORDER BY salary DESC) AS dense_rnk
+FROM employees;
+-- RANK skips numbers on ties; DENSE_RANK does not`},
+    {l:'SUM OVER — running total',c:
+`SELECT
+  name, salary,
+  SUM(salary) OVER (
+    ORDER BY name
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS running_total
+FROM employees;`},
+    {l:'LAG / LEAD — prev & next row value',c:
+`SELECT
+  name, salary,
+  LAG(salary)  OVER (ORDER BY salary) AS prev_salary,
+  LEAD(salary) OVER (ORDER BY salary) AS next_salary,
+  salary - LAG(salary) OVER (ORDER BY salary) AS gap
+FROM employees;`},
+    {l:'AVG OVER PARTITION — dept average',c:
+`SELECT
+  name, dept, salary,
+  ROUND(AVG(salary) OVER (PARTITION BY dept), 2) AS dept_avg,
+  salary - AVG(salary) OVER (PARTITION BY dept) AS vs_dept_avg
+FROM employees;`},
+    {l:'NTILE — split into buckets/quartiles',c:
+`SELECT
+  name, salary,
+  NTILE(4) OVER (ORDER BY salary DESC) AS quartile
+FROM employees;
+-- quartile 1 = top 25%, quartile 4 = bottom 25%`},
+    {l:'FIRST_VALUE / LAST_VALUE per group',c:
+`SELECT
+  name, dept, salary,
+  FIRST_VALUE(name) OVER (
+    PARTITION BY dept ORDER BY salary DESC
+  ) AS top_earner_in_dept
+FROM employees;`},
+  ],
+  cte:[
+    {l:'Basic CTE',c:
+`WITH high_earners AS (
+  SELECT name, salary, dept
+  FROM employees
+  WHERE salary > 70000
+)
+SELECT dept, COUNT(*) AS cnt, AVG(salary) AS avg_sal
+FROM high_earners
+GROUP BY dept;`},
+    {l:'Multiple CTEs chained',c:
+`WITH
+  dept_stats AS (
+    SELECT dept,
+      AVG(salary) AS avg_sal,
+      COUNT(*)    AS headcount
+    FROM employees
+    GROUP BY dept
+  ),
+  top_depts AS (
+    SELECT dept FROM dept_stats WHERE headcount >= 3
+  )
+SELECT e.name, e.salary, ds.avg_sal
+FROM employees e
+JOIN dept_stats ds ON e.dept = ds.dept
+JOIN top_depts  td ON e.dept = td.dept
+WHERE e.salary > ds.avg_sal;`},
+    {l:'Recursive CTE — number series',c:
+`WITH RECURSIVE nums(n) AS (
+  SELECT 1                          -- anchor
+  UNION ALL
+  SELECT n + 1 FROM nums WHERE n < 10  -- recursive step
+)
+SELECT n, n*n AS squared, n*n*n AS cubed FROM nums;`},
+    {l:'Recursive CTE — org hierarchy',c:
+`WITH RECURSIVE org(id, name, mgr_id, lvl) AS (
+  -- anchor: top-level (no manager)
+  SELECT id, name, mgr_id, 0
+  FROM employees WHERE mgr_id IS NULL
+  UNION ALL
+  -- recursive: employees whose manager is in org
+  SELECT e.id, e.name, e.mgr_id, o.lvl + 1
+  FROM employees e
+  JOIN org o ON e.mgr_id = o.id
+)
+SELECT lvl, name FROM org ORDER BY lvl, name;`},
+    {l:'CTE + Window function combo',c:
+`WITH ranked AS (
+  SELECT *,
+    DENSE_RANK() OVER (
+      PARTITION BY dept ORDER BY salary DESC
+    ) AS dr
+  FROM employees
+)
+-- Get the top earner per department
+SELECT name, dept, salary
+FROM ranked
+WHERE dr = 1;`},
+  ],
+  subq:[
+    {l:'Subquery in WHERE',c:
+`-- Employees earning above company average
+SELECT name, salary
+FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees);`},
+    {l:'Subquery in FROM (derived table)',c:
+`SELECT dept, avg_sal
+FROM (
+  SELECT dept, AVG(salary) AS avg_sal
+  FROM employees
+  GROUP BY dept
+) AS dept_avgs
+WHERE avg_sal > 60000;`},
+    {l:'Scalar subquery in SELECT',c:
+`SELECT
+  name,
+  salary,
+  (SELECT AVG(salary) FROM employees) AS company_avg,
+  ROUND(salary * 100.0 /
+    (SELECT SUM(salary) FROM employees), 2) AS pct_of_payroll
+FROM employees;`},
+    {l:'EXISTS subquery',c:
+`SELECT name, dept
+FROM employees e
+WHERE EXISTS (
+  SELECT 1
+  FROM departments d
+  WHERE d.id = e.dept_id AND d.active = 1
+);`},
+    {l:'IN / NOT IN subquery',c:
+`-- IN: depts with avg salary > 65k
+SELECT name FROM employees
+WHERE dept IN (
+  SELECT dept FROM employees
+  GROUP BY dept HAVING AVG(salary) > 65000
+);
+
+-- NOT IN
+SELECT name FROM employees
+WHERE dept NOT IN ('HR', 'Legal');`},
+    {l:'Correlated subquery — per-row comparison',c:
+`-- Employees earning more than their OWN dept's average
+SELECT name, dept, salary
+FROM employees e1
+WHERE salary > (
+  SELECT AVG(salary)
+  FROM employees e2
+  WHERE e2.dept = e1.dept   -- correlated: references outer row
+);`},
+  ],
+  ddl:[
+    {l:'CREATE TABLE + INSERT data',c:
+`CREATE TABLE IF NOT EXISTS products (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  name     TEXT    NOT NULL,
+  category TEXT,
+  price    REAL    DEFAULT 0,
+  stock    INTEGER DEFAULT 0
+);
+
+INSERT INTO products (name, category, price, stock) VALUES
+  ('Laptop',     'Electronics', 999.99, 50),
+  ('Mouse',      'Electronics',  29.99, 200),
+  ('Desk Chair', 'Furniture',   249.00, 30),
+  ('Notebook',   'Stationery',    4.99, 500),
+  ('Monitor',    'Electronics', 399.99, 75);`},
+    {l:'ALTER TABLE — add column',c:
+`ALTER TABLE employees ADD COLUMN bonus REAL DEFAULT 0;
+
+-- Then update it
+UPDATE employees
+SET bonus = salary * 0.15
+WHERE dept = 'Engineering';
+
+SELECT name, salary, bonus FROM employees LIMIT 5;`},
+    {l:'CREATE VIEW',c:
+`CREATE VIEW IF NOT EXISTS eng_salaries AS
+SELECT id, name, salary, bonus
+FROM employees
+WHERE dept = 'Engineering';
+
+SELECT * FROM eng_salaries ORDER BY salary DESC;`},
+    {l:'CREATE INDEX',c:
+`CREATE INDEX IF NOT EXISTS idx_emp_dept
+ON employees(dept);
+
+-- See all indexes
+SELECT * FROM sqlite_master WHERE type='index';`},
+    {l:'INSERT OR REPLACE (UPSERT)',c:
+`INSERT OR REPLACE INTO employees (id, name, dept, salary)
+VALUES (1, 'Alice (Updated)', 'Engineering', 102000);`},
+    {l:'Inspect DB metadata',c:
+`-- All tables
+SELECT name FROM sqlite_master WHERE type='table';
+
+-- Column details
+PRAGMA table_info("employees");
+
+-- Drop table
+DROP TABLE IF EXISTS products;`},
+  ],
+  demo:[
+    {l:'STEP 1 — Build demo DB (run this first!)',c:
+`DROP TABLE IF EXISTS employees;
+DROP TABLE IF EXISTS departments;
+
+CREATE TABLE departments (
+  id   INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  active INTEGER DEFAULT 1
+);
+INSERT INTO departments VALUES
+  (1,'Engineering',1),(2,'Marketing',1),(3,'HR',1),(4,'Sales',1);
+
+CREATE TABLE employees (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  name    TEXT NOT NULL,
+  dept    TEXT NOT NULL,
+  salary  REAL NOT NULL,
+  mgr_id  INTEGER,
+  joined  TEXT
+);
+INSERT INTO employees (name,dept,salary,mgr_id,joined) VALUES
+  ('Alice',  'Engineering',95000,NULL,'2018-01-15'),
+  ('Bob',    'Engineering',82000,1,   '2019-03-20'),
+  ('Carol',  'Marketing',  70000,NULL,'2020-07-01'),
+  ('Dave',   'Marketing',  65000,3,   '2021-02-14'),
+  ('Eve',    'HR',         58000,NULL,'2019-11-05'),
+  ('Frank',  'Engineering',105000,1,  '2017-08-10'),
+  ('Grace',  'Sales',      77000,NULL,'2020-05-22'),
+  ('Heidi',  'Sales',      69000,7,   '2022-01-30'),
+  ('Ivan',   'Engineering',91000,1,   '2021-09-15'),
+  ('Judy',   'HR',         61000,5,   '2023-03-01');
+
+SELECT 'Demo ready! employees + departments tables created.' AS message;`},
+    {l:'STEP 2 — Window functions showcase',c:
+`WITH base AS (
+  SELECT
+    name, dept, salary,
+    DENSE_RANK()  OVER (PARTITION BY dept ORDER BY salary DESC) AS dept_rank,
+    ROUND(AVG(salary) OVER (PARTITION BY dept), 0)             AS dept_avg,
+    SUM(salary)   OVER ()                                       AS total_payroll,
+    ROW_NUMBER()  OVER (ORDER BY salary DESC)                   AS company_rank
+  FROM employees
+)
+SELECT
+  name, dept, salary, dept_rank, dept_avg,
+  ROUND(salary*100.0/total_payroll,1) || '%' AS payroll_pct,
+  company_rank
+FROM base
+ORDER BY company_rank;`},
+    {l:'STEP 3 — CTE chain + subquery',c:
+`WITH
+  dept_stats AS (
+    SELECT dept,
+      COUNT(*)    AS headcount,
+      AVG(salary) AS avg_sal,
+      SUM(salary) AS dept_budget
+    FROM employees GROUP BY dept
+  ),
+  above_avg AS (
+    SELECT e.name, e.dept, e.salary, ds.avg_sal
+    FROM employees e
+    JOIN dept_stats ds ON e.dept = ds.dept
+    WHERE e.salary > ds.avg_sal   -- subquery logic via CTE
+  )
+SELECT dept,
+  COUNT(*) AS above_avg_count,
+  ROUND(AVG(salary),0) AS their_avg_salary
+FROM above_avg
+GROUP BY dept
+ORDER BY their_avg_salary DESC;`},
+    {l:'STEP 4 — LAG: salary progression',c:
+`-- Sort employees by join date, show salary vs previous hire
+SELECT
+  name, joined, salary,
+  LAG(name)   OVER (ORDER BY joined)   AS prev_hire,
+  LAG(salary) OVER (ORDER BY joined)   AS prev_salary,
+  salary - LAG(salary) OVER (ORDER BY joined) AS salary_diff
+FROM employees
+ORDER BY joined;`},
+    {l:'STEP 5 — Recursive org chart',c:
+`WITH RECURSIVE org(id, name, mgr_id, lvl, path) AS (
+  SELECT id, name, mgr_id, 0, name
+  FROM employees WHERE mgr_id IS NULL
+  UNION ALL
+  SELECT e.id, e.name, e.mgr_id, o.lvl+1,
+         o.path || ' -> ' || e.name
+  FROM employees e
+  JOIN org o ON e.mgr_id = o.id
+)
+SELECT
+  REPLACE(REPLACE(REPLACE('','A','-'),'',''), '', '  ') ||
+  name        AS employee,
+  lvl         AS level,
+  path        AS reporting_chain
+FROM org ORDER BY path;`},
+    {l:'STEP 6 — Correlated subquery: above dept avg',c:
+`-- Who earns more than their own department's average?
+SELECT
+  e1.name,
+  e1.dept,
+  e1.salary,
+  ROUND((SELECT AVG(salary) FROM employees e2
+         WHERE e2.dept = e1.dept), 0) AS dept_avg,
+  ROUND(e1.salary - (SELECT AVG(salary) FROM employees e2
+         WHERE e2.dept = e1.dept), 0) AS above_by
+FROM employees e1
+WHERE e1.salary > (
+  SELECT AVG(salary) FROM employees e2
+  WHERE e2.dept = e1.dept
+)
+ORDER BY above_by DESC;`},
+  ],
+};
+
+function showCheat(cat){
+  document.querySelectorAll('.ctab').forEach(t=>t.classList.toggle('active',t.dataset.c===cat));
+  const items=CD[cat]||[];
+  document.getElementById('cheatBody').innerHTML=items.map(item=>`
+    <div class="csec">
+      <div class="clabel">${item.l}</div>
+      <div class="csnip" onclick='setQ(${JSON.stringify(item.c)})'>${esc(item.c)}</div>
+    </div>`).join('');
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+showCheat('basics');
+</script>
+</body>
+</html>
